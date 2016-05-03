@@ -1,5 +1,6 @@
 'use strict';
 
+const _ = require('lodash');
 const async = require('async');
 const express = require('express');
 const fs = require('fs');
@@ -15,16 +16,27 @@ exports.router = router;
 router.get('/api/1/config',get_config);
 
 router.all('/api/1/proxy/:ip/set',set_proxy);
+router.all('/api/1/proxy/:ip/clear',clear_proxy);
 
 function get_config(req,res) {
   res.header("Cache-Control", "no-cache, no-store, must-revalidate");
 
-  read_config((err,config) => {
+  read_config((err,server_config) => {
     if (err) {
       res.sendStatus(500);
     } else {
-      config.client_ip = req.ip.replace(/^.*:/,'');
-      res.send(config);
+      const server_list = config.preset_server_list
+      server_config.client_ip = req.ip.replace(/^.*:/,'');
+      server_config.server_list = server_list;
+      _.each(server_config.ip_proxy_map,(url,ip) => {
+        const server = _.findWhere(server_list,{ url });
+        if (server) {
+          server_config.ip_proxy_map[ip] = server;
+        }
+      });
+      const default_server = _.findWhere(server_list,{ url: server_config.default_proxy });
+      server_config.default_proxy = default_server || server_config.default_proxy;
+      res.send(server_config);
     }
   });
 }
@@ -36,12 +48,60 @@ function set_proxy(req,res) {
   if (ip == 'self') {
     ip = req.ip.replace(/^.*:/,'');
   }
-  const url = req.query.url || req.body.url;
+  let url = req.query.url || req.body.url;
+  const name = req.query.name || req.body.name;
+  if (name) {
+    const server = _.findWhere(config.preset_server_list, { name });
+    if (server) {
+      url = server.url;
+    }
+  }
   if (!ip) {
     throw { code: 400, body: "ip is required" };
   }
   if (!url) {
-    throw { code: 400, body: "url is required" };
+    throw { code: 400, body: "url or a valid name is required" };
+  }
+
+  let body = false;
+  let new_body = false;
+  let server_config = false;
+  async.series([
+  (done) => {
+    read_config((err,_config,_body) => {
+      server_config = _config;
+      body = _body;
+      done(err);
+    });
+  },
+  (done) => {
+    new_body = body;
+    if (ip in server_config.ip_proxy_map) {
+      new_body = remove_proxy(ip,new_body);
+    }
+    new_body = add_proxy(ip,url,new_body,server_config.insert_index);
+    write_config(new_body,done);
+  }],
+  (err) => {
+    if (err == 'conflict') {
+      res.sendStatus(409);
+    } else if (err) {
+      res.sendStatus(500);
+    } else {
+      res.sendStatus(200);
+    }
+  });
+}
+
+function clear_proxy(req,res) {
+  res.header("Cache-Control", "no-cache, no-store, must-revalidate");
+
+  let ip = req.params.ip;
+  if (ip == 'self') {
+    ip = req.ip.replace(/^.*:/,'');
+  }
+  if (!ip) {
+    throw { code: 400, body: "ip is required" };
   }
 
   let body = false;
@@ -60,9 +120,7 @@ function set_proxy(req,res) {
     if (ip in config.ip_proxy_map) {
       new_body = remove_proxy(ip,new_body);
     }
-    new_body = add_proxy(ip,url,new_body,config.insert_index);
     write_config(new_body,done);
-    //done(null);
   }],
   (err) => {
     if (err == 'conflict') {

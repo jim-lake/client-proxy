@@ -1,0 +1,24 @@
+{
+  "name": "client-proxy",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "start": "node --harmony app.js"
+  },
+  "engines" : {
+    "node" : ">=4.1.1"
+  },
+  "dependencies": {
+    "express": "4.x",
+    "ejs": "1.x",
+    "morgan": "*",
+    "method-override": "*",
+    "body-parser": "*",
+    "cookie-parser": "*",
+    "async": "*",
+    "lodash": "3.x",
+    "server-control": "0.0.10",
+    "errorhandler": "*",
+    "semver": "*"
+  }
+}

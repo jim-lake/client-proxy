@@ -173,14 +173,15 @@ function add_proxy(ip,url,body,insert_index) {
 }
 
 function remove_proxy(ip,body) {
-  const REMOVE_REGEX = /\n\s*if\s*\(\s*\$remote_addr\s*\~\*\s*([^\s]*)\s*\)\s*\{\s*proxy_pass\s*([^\s;]*)\s*;[^\}]*\}[^\n]*\n/;
-  return body.replace(REMOVE_REGEX,(full,ip) => {
+  const REMOVE_REGEX = /\n\s*if\s*\(\s*\$remote_addr\s*\~\*\s*([^\s]*)\s*\)\s*\{\s*proxy_pass\s*([^\s;]*)\s*;[^\}]*\}[^\n]*\n/g;
+  const new_body = body.replace(REMOVE_REGEX,(full,found_ip) => {
     let ret = full;
-    if (ip == ip) {
+    if (found_ip == ip) {
       ret = "\n";
     }
     return ret;
   });
+  return new_body;
 }
 
 let is_writing = false;
